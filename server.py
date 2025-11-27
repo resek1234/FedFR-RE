@@ -11,8 +11,9 @@ import torch.nn as nn
 import torch.utils.data.distributed
 from utils.utils_logging import AverageMeter, init_logging
 import copy
-from utils.utils_callbacks import CallBackVerification, CallBackLogging, CallBackModelCheckpoint
-from eval_local import CallBack_LocalVerifi
+from utils.utils_callbacks import CallBackLogging, CallBackModelCheckpoint
+
+
 from tqdm import tqdm
 import gc
 import copy
@@ -21,6 +22,7 @@ import time
 import pickle
 import numpy as np
 from functools import reduce
+from eval.verification_pytorch import read_pairs, get_paths, extract_emb, evaluate
 
 def FedPavg(models,weights):
     aggr = copy.deepcopy(models[0])
@@ -99,13 +101,7 @@ class Server(object):
         self.rank = 0 #dist.get_rank()
         self.local_rank = 0 #args.local_rank
         
-        ## 1:1 verify on small dataset (cfp, lfw...)
-        self.callback_verification = CallBackVerification(1, self.rank, cfg.val_targets, cfg.val_rec, self.num_client)
-        
-        ## 1:1 verify on our local dataset, sample 10 
-        self.callback_local_veri = CallBack_LocalVerifi(frequent=1, rank=self.rank,data_dir=cfg.local_rec,output_dir=self.output_dir)
-        self.local_candidates = sorted(list(np.random.permutation(self.num_client)[:10]))
-        print('Local Veri Candidates',self.local_candidates)
+       
 
         self.callback_checkpoint = CallBackModelCheckpoint(self.rank, self.output_dir)
         self.current_client_list = None
@@ -133,20 +129,37 @@ class Server(object):
                 self.clients[i].bce_module.initialize(self.clients[i].fc_module.fc.data)
 
     def test(self):
-        with torch.no_grad():
-            self.federated_model.to(self.local_rank)
-            self.federated_model = nn.DataParallel(self.federated_model)
-            self.federated_model.eval()
-            self.callback_verification(self.global_round, self.federated_model, None, th=0)
-            # only rank 0 has highest_acc_list
-            if self.callback_verification.highest_acc_list[-1][0] == self.global_round:
-                self.callback_checkpoint(self.global_round,self.federated_model,None)
-                self.logger.info('Save server model, epoch %d model...'%(self.global_round))
-            self.federated_model = self.federated_model.module.cpu()
+        print("=== LFW Verification (PyTorch version) ===")
+        model = self.federated_model.cuda()
 
-            if self.global_round >= 0 and self.global_round % 1 == 0:
-                torch.save(self.federated_model.state_dict(), os.path.join(self.output_dir, "backbone_%d.pth"%self.global_round))
-            
+        model.eval()
+
+        # 네가 가진 실제 구조에 완전히 맞춤
+        lfw_root = "./data/lfw/lfw-deepfunneled"
+        lfw_pairs = "./data/lfw/pairs.txt"
+
+        if not os.path.exists(lfw_root):
+            print("LFW directory not found:", lfw_root)
+            return
+
+        if not os.path.exists(lfw_pairs):
+            print("pairs.txt not found. Download it from:")
+            print("https://raw.githubusercontent.com/davidsandberg/facenet/master/data/lfw/pairs.txt")
+            return
+
+        print("Loading LFW pairs...")
+        pairs = read_pairs(lfw_pairs)
+
+        print("Generating image paths...")
+        paths, issame = get_paths(lfw_root, pairs)
+
+        print("Extracting embeddings...")
+        embs = extract_emb(model, paths)
+
+        print("Evaluating...")
+        mean_acc, std_acc = evaluate(embs, issame)
+
+        print(f"[LFW] Accuracy = {mean_acc:.4f} ± {std_acc:.4f}")        
             # if self.local_rank == 0 and (self.global_epoch+1)%5 == 0:
                 ## IJBC
                 # torch.save(self.federated_model.state_dict(), os.path.join(self.output_dir, "ijbc_tmp.pth"))
@@ -288,22 +301,18 @@ class Server(object):
             ## Adjust local epoch
             self.clients[i].local_epoch = self.local_epoch
             
-            ## Train with local verify test
-            if self.clients[i].cid in self.local_candidates:
-                if self.args.add_pretrained_data:
-                    self.clients[i].train_with_public_data(self.global_epoch,callback_verification=self.callback_local_veri,\
-                        public_train_loader=self.public_train_loader,pretrained_fc=self.pretrained_fc,choose_hard_negative=True,\
-                        pretrained_label=self.pretrained_label,pretrained_feats=self.pretrained_feats)
-                else:
-                    self.clients[i].train(self.global_epoch,callback_verification=self.callback_local_veri)
-            ## train w/o local test
+            if self.args.add_pretrained_data:
+                self.clients[i].train_with_public_data(
+                    self.global_epoch,
+                    public_train_loader=self.public_train_loader,
+                    pretrained_fc=self.pretrained_fc,
+                    choose_hard_negative=True,
+                    pretrained_label=self.pretrained_label,
+                    pretrained_feats=self.pretrained_feats
+                )
             else:
-                if self.args.add_pretrained_data:
-                    self.clients[i].train_with_public_data(self.global_epoch,\
-                        public_train_loader=self.public_train_loader,pretrained_fc=self.pretrained_fc,choose_hard_negative=True,\
-                        pretrained_label=self.pretrained_label,pretrained_feats=self.pretrained_feats)
-                else:
-                    self.clients[i].train(self.global_epoch)
+                self.clients[i].train(self.global_epoch)
+
             ####################################################### 
             losses.append(self.clients[i].get_train_loss())
             

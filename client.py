@@ -11,14 +11,14 @@ import torch.nn as nn
 import torch.utils.data.distributed
 from utils.utils_logging import AverageMeter, init_logging
 from utils.utils_callbacks import CallBackVerification, CallBackLogging, CallBackModelCheckpoint
-from eval_local import CallBack_LocalVerifi
+#from eval_local import CallBack_LocalVerifi
 from tqdm import tqdm
 import gc
 import copy
 import pickle
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from dataset import MXFaceDataset_Subset,MXFaceDataset_Combine,DataLoaderX
+
 from functools import reduce
 from backbones import BottleBlock
 
@@ -122,7 +122,10 @@ class Client(object):
         self.dataset_size = data.train_dataset_sizes[self.cid]
         self.train_loader = data.train_loaders[self.cid]
         # The global base ID for each client (ex. local: 0-99, global: 300-399 )
-        self.ID_base = data.train_loaders[self.cid].dataset.ID_base
+        self.num_classes = data.train_class_sizes[self.cid]
+        self.ID_base = self.cid * self.num_classes  # ★ FedFR offset 방식
+        
+
         self.target_ID = list(range(self.ID_base,self.ID_base+self.num_classes))
 
         if hasattr(data, 'test_loaders'):
@@ -130,7 +133,7 @@ class Client(object):
         if hasattr(data, 'public_train_loader'):
             self.public_num_classes = data.public_train_loader.dataset.num_classes
         # add margin
-        self.margin_softmax = eval("losses.{}".format(args.loss))(s=30,m=0.4)
+        self.margin_softmax = eval("losses.{}".format(args.loss))(s=20,m=0.3)
         if self.args.BCE_local:
             self.bce_module = BCE_module(512, self.num_classes,cfg.converter_layer)
             self.bce_loss = losses.BCE_loss()
@@ -298,7 +301,7 @@ class Client(object):
         ### combine dataloader
         if self.args.combine_dataset:
             combine_dataset = MXFaceDataset_Combine(self.train_loader.dataset, public_loader_subset.dataset)
-            combine_loader = DataLoader(combine_dataset,batch_size=cfg.com_batch_size,shuffle=True,num_workers=6,pin_memory=True,drop_last=True)
+            combine_loader = DataLoader(combine_dataset,batch_size=cfg.com_batch_size,shuffle=True,num_workers=8,pin_memory=True,drop_last=True)
             ### Update dataset size, for FedAvg
             self.dataset_size = len(combine_dataset)
         else:
@@ -355,7 +358,12 @@ class Client(object):
         for epoch in range(start_epoch, start_epoch+self.local_epoch):
             self.logger.info('Epoch %d,Total Epoch %d, Total step : %d, lr=%.4f'%(epoch,start_epoch+self.local_epoch,\
                             len(combine_loader),schler.get_last_lr()[0]))
-            pbar = tqdm(total=len(combine_loader),ncols=120,leave=True)
+            pbar = tqdm(
+                total=len(self.train_loader),
+                ncols=80,
+                leave=False,
+                dynamic_ncols=False
+            )
             if self.args.BCE_local:  ### train with BCE loss
                 for step, (imgs, labels) in enumerate(combine_loader):
                     opt.zero_grad()
@@ -532,7 +540,12 @@ class Client(object):
         
         for epoch in range(start_epoch, start_epoch+self.local_epoch):
             self.logger.info('Epoch %d, Total step : %d'%(epoch, len(self.train_loader)))
-            pbar = tqdm(total=len(self.train_loader),ncols=120,leave=True)
+            pbar = tqdm(
+                total=len(self.train_loader),
+                ncols=80,
+                leave=False,
+                dynamic_ncols=False
+            )
             for step, (imgs, labels) in enumerate(self.train_loader):
                 opt.zero_grad()
                 if len(imgs) ==1:
