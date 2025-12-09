@@ -129,13 +129,10 @@ IJB-C Benchmark는:
 
 원본 FedFR 실험 대비 4000 ID 정도의 축소된 데이터만 사용했습니다.
 
-📁 데이터셋 다운로드 안내
+🙏 Acknowledgement
 
-본 저장소는 저작권 문제로 얼굴 이미지 데이터를 포함하지 않습니다.
-
-VGGFace2: [https://www.robots.ox.ac.uk/~vgg/data/vgg_face2/](https://academictorrents.com/details/535113b8395832f09121bc53ac85d7bc8ef6fa5b)
-
-LFW: https://www.kaggle.com/datasets/jessicali9530/lfw-dataset
+이 프로젝트는 학습 및 연구 목적의 단순 재구현이며,
+상업적 사용을 위한 정식 구현이 아닙니다.
 
 
 
