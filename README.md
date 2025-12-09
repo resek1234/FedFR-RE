@@ -34,6 +34,8 @@ python d:/FedFR-RE/split_dataset/split_FL.py \
     --num_client 40 \
     --num_ID 4000
 
+---
+
 본 프로젝트는 아나콘다(Conda) 환경에서 다음과 같이 설정했습니다.
 1) Conda 환경 생성
 conda create -n fedfr python=3.8
@@ -70,3 +72,4 @@ IJB-C Benchmark는:
 4) 데이터 규모 축소
 
 원본 FedFR 실험 대비 4000 ID 정도의 축소된 데이터만 사용했습니다.
+
