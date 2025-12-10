@@ -14,8 +14,8 @@ import numpy as np
 import backbones
 import losses
 from config import config as cfg
-from dataset import MXFaceDataset, DataLoaderX, All_Client_Dataset
-from utils.utils_callbacks import CallBackVerification, CallBackLogging, CallBackModelCheckpoint
+from dataset import All_Client_Dataset
+from utils.utils_callbacks import CallBackLogging, CallBackModelCheckpoint
 from utils.utils_logging import AverageMeter, init_logging
 
 def set_random_seed(seed_value, use_cuda=True,deterministic=True):
@@ -48,8 +48,7 @@ def main(args):
         time.sleep(0.05)
     # copy code
     os.system('mkdir -p %s'%os.path.join(args.output_dir,'code'))
-    os.system('cp -r *.py *.sh backbones/ eval/ utils/ %s'%(os.path.join(args.output_dir,'code')))
-
+    
     log_root = logging.getLogger('FL_face')
     log_root.propagate = False
     init_logging(log_root, rank, args.output_dir)
@@ -72,17 +71,21 @@ def main(args):
     log_root.info('===Start Federated learning===')
     for i in range(args.total_round):
         ## based on csr, sample a subset of client (default: 100%)
-        current_client_list = sorted(random.sample(list(range(server.num_client)),int(server.csr*server.num_client)))
+        current_client_list = sorted(
+            random.sample(list(range(server.num_client)), int(server.csr * server.num_client))
+        )
         server.current_client_list = current_client_list
-        log_root.info('\n ====== Round %d======'%(i))
-        ## train
+        log_root.info('\n ====== Round %d======' % (i))
+
+        ## train 1 federated round
         server.train()
+
+        ## Run LFW evaluation **after** each round
+        print(f"===== Round {i} : LFW Evaluation =====")
+        server.test()
+
         if args.spreadout:
-            server.SpreadOut(sp_iter=20,mode='mean')
-        
-        if i % 1 == 0 and i >= 0:
-            # test on small dataset
-            server.test()
+            server.SpreadOut(sp_iter=20, mode='mean')
 
         server.global_epoch += server.local_epoch
         server.global_round += 1

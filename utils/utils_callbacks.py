@@ -4,7 +4,7 @@ import time
 from typing import List
 import sys
 import torch
-from eval import verification
+#from eval import verification
 from utils.utils_logging import AverageMeter
 from partial_fc import PartialFC
 logger = logging.getLogger('FL_face.callback')

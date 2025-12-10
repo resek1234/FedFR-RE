@@ -1,57 +1,138 @@
-# FedFR: Joint Optimization Federated Framework for Generic and Personalized Face Recognition
+본 레포지토리는 AAAI 2022에 게재된 논문  
+**“FedFR: Joint Optimization Federated Framework for Generic and Personalized Face Recognition”**  
+(https://arxiv.org/abs/2112.12496)을 기반으로 한 경량 재구현 버전입니다.
 
-[[Paper]](https://ojs.aaai.org/index.php/AAAI/article/view/20057/19816) [[arXiv]](https://arxiv.org/abs/2112.12496)
+본 프로젝트는 **아나콘다(Conda) 기반 Python 환경에서 실행되도록 구성**되었으며,  
+GPU가 없는 환경 또는 제한된 자원에서도 실행 가능한 단순화된 FedFR 학습 파이프라인을 제공합니다.  
+연구·교육 목적의 재현을 목표로 하며, 원 논문의 대규모 실험 환경 전체를 수행하지는 않습니다.
 
-[Chih-Ting Liu](https://jackie840129.github.io/), Chien-Yi Wang, Shao-Yi Chien, Shang-Hong Lai, <br/>Proceedings of the AAAI Conference on Artificial Intelligence (AAAI), 2022
 
-## Generate FedFR Dataset
+---
 
-You can follow the steps in [split_dataset](split_dataset) to generate our pretrained, and FL dataset.
+## 🚀 프로젝트 주요 특징
 
-## Prerequisite
+- 아나콘다 기반 Python 환경에서 손쉽게 실행 가능
+- FedFR 구조를 반영한 **Federated Learning 학습 루프 구현**
+- **Global + Personalized 모델 구조 반영**
+- **VGGFace2 데이터를 40개 클라이언트 / 4000 ID로 Federated Split**
+- CPU 환경에서도 구동 가능하도록 경량화
+- **LFW Generic Evaluation 지원**
 
-1. Put the pretrained model (["backbone.pth"](https://drive.google.com/file/d/19d-Qm-RkBh9E2P1o_ZbdrHAyoZocFZbK/view?usp=sharing)) under the `pretrain/` folder.
+## 📁 데이터셋 다운로드 안내 (VGGFace2 & LFW)
 
-## Training our FedFR
-1. In `config.py`, you should first change the path of `config.rec` and `config.local_rec`
-2. Run with command `sh run.sh`.
-3. After training, you will have models saved in the checkpoint directory, eg., `ckpt/FedFR/`.
+본 프로젝트는 얼굴 인식 모델 학습 및 평가를 위해  
+**VGGFace2**(학습용)와 **LFW**(평가용) 데이터셋을 사용합니다.
 
-## Generic Evaluation
+현재 두 데이터셋의 **공식 다운로드 링크는 정상 작동하지 않기 때문에**,  
+사용자는 연구 커뮤니티에서 제공하는 **대체 미러 링크**를 통해 직접 다운로드해야 합니다.
 
-You will evaluate the generic performance on IJBC dataset.
+본 저장소는 저작권 및 개인정보 보호 정책에 따라  
+**어떠한 이미지 데이터도 포함하지 않습니다.**
 
-You can use `ijbc_conti.py` to continuously evaluate all checkpoints saved in the directory. (eg. epoch 5 to epoch 11)
+---
+
+### 🔹 VGGFace2 Dataset (학습용)
+
+다음 연구 커뮤니티 미러를 통해 다운로드할 수 있습니다:
+
+- **Academic Torrents (Research Sharing Platform):**  
+  https://academictorrents.com/?search=vggface2  
+
+> ⚠️ 주의  
+> - Academic Torrents는 커뮤니티 기반 플랫폼으로,  
+>   데이터가 공식 허가된 배포본인지 여부는 **사용자 책임**하에 확인해야 합니다.  
+> - 본 저장소는 데이터를 직접 제공하지 않으며, 다운로드 및 사용 시  
+>   **VGGFace2 라이선스를 준수해야 합니다.**
+
+---
+
+### 🔹 LFW Dataset (평가용)
+
+본 프로젝트에서는 **Kaggle에 업로드된 LFW 미러**를 사용했습니다.
+
+- **Kaggle LFW Dataset:**  
+  https://www.kaggle.com/datasets/jessicali9530/lfw-dataset
+
+> ⚠️ 주의  
+> - LFW는 공개 데이터셋이지만 이미지 **재배포는 허용되지 않습니다.**  
+> - 사용자는 Kaggle 계정으로 직접 다운로드해야 하며,  
+>   LFW 라이선스 조건을 준수해야 합니다.
+
+---
+
+### 📂 데이터 배치 구조 예시
+
+data/
+vggface2/
+... 이미지 파일 ...
+split/
+... federated split 결과 ...
+lfw/
+... LFW 이미지 파일 ...
+
+본 저장소는 **데이터 분할 스크립트(split_FL.py) 및 메타데이터만 제공**하며,  
+이미지 파일은 포함하지 않습니다.
+
+---
+
+## 📂 Federated Data Split (VGGFace2 기반)
+
+본 프로젝트는 **VGGFace2 데이터셋을 기반으로 Federated Learning용 데이터를 생성**했습니다.  
+아래 스크립트를 사용하여 **40명의 클라이언트 / 4000명의 ID**로 분할하였습니다.
+
+> ⚠️ 단, **`--num_client`와 `--num_ID` 값은 사용자 환경에 맞게 조정하여 사용할 수 있습니다.**  
+> 더 많은 클라이언트로 나누거나, 더 적은 ID만 사용할 수도 있습니다.
+### 🔧 사용한 Split 명령어
+
+```bash
+python d:/FedFR-RE/split_dataset/split_FL.py \
+    --data_dir "D:/FedFR-RE/data/vggface2" \
+    --output_dir "D:/FedFR-RE/data/split" \
+    --num_client 40 \
+    --num_ID 4000
 ```
-python3 ijbc_conti.py --root_path PATH/TO/IJBC/ --ckpt_dir ckpt/FedFR --epoch 5 6 7 8 9 10 11 \
-        --gpu 0 1 2 3 --job 'both'
-```
-There are two types of job, '1:1' and '1:n', as described in our paper.
-If you want to evaluate both, you can use `--job 'both'`.
 
-## Personalized Evaluation
+본 프로젝트는 아나콘다(Conda) 환경에서 다음과 같이 설정했습니다.
+1) Conda 환경 생성
+conda create -n fedfr python=3.8
+2) 환경 활성화
+conda activate fedfr
 
-Each model trained by client before FedAvg model aggregation will be used to evaluate the personalized performance.
 
-Furthermore, as described in paper, the backbone and the tranformation layer will be concatenated to generate personalized features.
+🏋️ 학습 실행 방법
+python train.py --lr 0.003 --num_client 40 --local_epoch 1 --total_round 5
+⚠️ num_client, local_epoch, total_round 등은 사용자 환경에 맞게 자유롭게 변경 가능합니다.
+예: 라운드 수를 증가시키면 학습 수렴이 개선되며, 클라이언트 수 조절을 통해 FL 실험 규모를 손쉽게 변경할 수 있습니다.
 
-The evaluation scripts are as follows:
+📊 성능 평가 (LFW)
 
-We only provide single checkpoint for some epoch and single type of evaluation ('1:1' or '1:n')
+본 재구현 버전은 LFW 기반 Generic Embedding 성능 평가만 제공합니다.
 
-### 1:1 Evaluation
-```
-python3 local_all.py --backbone 'multi' --task '1:1' --ckpt_path ckpt/FedFR \
-                     --data_dir $VERI_DIR --gallery $GALLERY_DIR --epoch 11 --num_client 40 --gpu 0 1 2 3
-```
-- `$VERI_DIR` is the path to 'local_veri_4000' when you split your dataset, eg. '/home/jackieliu/face_recognition/ms1m_split/local_veri_4000'
-- `$GALLERY_DIR` is the path to 'local_gallery_4000', eg. '/home/jackieliu/face_recognition/ms1m_split/local_gallery_4000'
+1) 짧은 학습 (Short Training)
 
-### 1:n Evaluation
-```
-python3 local_all.py --backbone 'multi' --task '1:n' --ckpt_path ckpt/FedFR \
-                     --data_dir $VERI_DIR --gallery $GALLERY_DIR --epoch 11 --num_client 40 --gpu 0 1 2 3
-```
-- `$VERI_DIR` is the path to 'local_veri_4000' when you split your dataset, eg. '/home/jackieliu/face_recognition/ms1m_split/local_veri_4000'
-- `$GALLERY_DIR` is the path to 'local_gallery_4000', eg. '/home/jackieliu/face_recognition/ms1m_split/local_gallery_4000'
+리소스 제약으로 인해 약 5 라운드 수준의 FL 학습만 수행했습니다.
+
+2) IJB-C 평가 미지원
+
+IJB-C Benchmark는:
+
+복잡한 평가 프로토콜
+
+대규모 메모리 필요
+등의 이유로 포함하지 못했습니다.
+
+3) DFC 모듈 미구현
+
+논문의 고급 기능인 DFC(Decomposed Feature Calibration)는 복잡성 및 메모리 문제로 제외했습니다.
+
+4) 데이터 규모 축소
+
+원본 FedFR 실험 대비 4000 ID 정도의 축소된 데이터만 사용했습니다.
+
+🙏 Acknowledgement
+
+이 프로젝트는 학습 및 연구 목적의 단순 재구현이며,
+상업적 사용을 위한 정식 구현이 아닙니다.
+
+
 
